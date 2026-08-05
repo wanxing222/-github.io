@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>万兴财富 - 管理后台</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:#333;background:#f0f2f5;}
+        a{text-decoration:none;color:inherit;}
+
+        /* === 万兴财富 定制UL风格 === */
+        .wxcf-menu ul{list-style:none;padding:0;margin:0;}
+        .wxcf-menu li{position:relative;padding:10px 8px 10px 35px;margin:2px 0;cursor:pointer;transition:all .2s;border-left:3px solid transparent;}
+        .wxcf-menu li::before{content:"◆";position:absolute;left:15px;color:#95a5a6;font-size:10px;top:50%;transform:translateY(-50%);}
+        .wxcf-menu li:hover{background:rgba(24,144,255,.1);color:#1890ff;}
+        .wxcf-menu li.active{background:rgba(24,144,255,.15);color:#fff;border-left-color:#1890ff;background:#0f1e2d;}
+        .wxcf-menu li.active::before{color:#ffcc00;}
+
+        /* === 登录页样式 === */
+        .login-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f1e2d 0%,#1f3042 100%);z-index:999;}
+        .login-box{width:380px;padding:30px 25px;background:#fff;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.2);}
+        .login-title{text-align:center;font-size:20px;font-weight:bold;color:#0f1e2d;margin-bottom:25px;}
+        .login-title span{color:#ff7a00;}
+        .form-item{margin-bottom:18px;}
+        .form-item label{display:block;margin-bottom:6px;color:#555;font-size:13px;}
+        .form-item input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px;transition:border .2s;}
+        .form-item input:focus{outline:none;border-color:#1890ff;}
+        .verify-wrap{display:flex;gap:10px;}
+        .verify-wrap input{flex:1;}
+        .verify-code{width:110px;height:42px;line-height:42px;text-align:center;background:#f5f5f5;color:#666;border-radius:4px;cursor:pointer;user-select:none;letter-spacing:4px;font-weight:bold;}
+        .login-btn{width:100%;padding:11px;background:linear-gradient(90deg,#ff7a00,#ff9500);color:#fff;border:none;border-radius:4px;font-size:15px;cursor:pointer;transition:opacity .2s;margin-top:5px;}
+        .login-btn:hover{opacity:.92;}
+        .login-extra{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;color:#888;}
+        .login-extra label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+        .login-tips{margin-top:15px;text-align:center;font-size:12px;color:#aaa;}
+
+        /* === 后台主界面 === */
+        .admin-wrap{display:none;height:100vh;overflow:hidden;}
+        .layout{display:flex;height:100%;overflow:hidden;}
+        .sidebar{width:200px;background:#0f1e2d;color:#b8c7ce;flex-shrink:0;}
+        .sidebar-top{padding:15px;font-size:15px;font-weight:bold;color:#fff;border-bottom:1px solid #1f3042;display:flex;justify-content:space-between;align-items:center;}
+        .logout-btn,.cfg-btn{font-size:12px;color:#ff7a00;cursor:pointer;margin-left:6px;}
+        .sidebar-menu{padding:10px 5px;}
+
+        /* 主内容区 */
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+        .header{background:#fff;padding:8px 15px;border-bottom:1px solid #e6e6e6;display:flex;justify-content:space-between;align-items:center;}
+        .tabs{display:flex;gap:5px;}
+        .tab-item{padding:5px 12px;border-radius:4px 4px 0 0;cursor:pointer;border:1px solid transparent;}
+        .tab-item.active{background:#f0f2f5;border-color:#e6e6e6 #e6e6e6 transparent;}
+        .content{flex:1;padding:15px;overflow:auto;background:#f0f2f5;}
+        .page{display:none;}
+        .page.active{display:block;animation:fadeIn .3s;}
+        @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+        /* 按钮/输入框 */
+        .search-bar{margin-bottom:15px;}
+        .search-bar input{padding:5px 8px;border:1px solid #ccc;border-radius:3px;margin-right:5px;}
+        button{padding:5px 12px;border:none;border-radius:3px;cursor:pointer;}
+        .btn-orange{background:#ff7a00;color:#fff;}
+        .btn-default{background:#e6e6e6;}
+        .btn-sm{padding:3px 8px;font-size:12px;}
+        .btn-green{background:#00b42a;color:#fff;}
+
+        /* 表格 */
+        table{width:100%;border-collapse:collapse;background:#fff;margin-top:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+        th,td{padding:8px 10px;text-align:left;border:1px solid #eee;font-size:12px;}
+        th{background:#f7f7f7;color:#333;white-space:nowrap;}
+        tr:hover{background:#f9fcff;}
+
+        /* 统计卡片 */
+        .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:20px;}
+        .card{background:#fff;padding:15px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+        .card .num{font-size:24px;color:#1890ff;font-weight:bold;}
+        .chart-box{background:#fff;padding:15px;border-radius:4px;}
+        .info-box{background:#fff;padding:15px;border-radius:4px;margin-top:15px;}
+
+        /* 地图容器 */
+        #map{width:100%;height:calc(100vh - 160px);border-radius:4px;}
+
+        /* 右上角用户 */
+        .user-area{display:flex;align-items:center;gap:15px;font-size:13px;}
+
+        /* === 配置面板弹窗 === */
+        .cfg-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:999;}
+        .cfg-modal.show{display:flex;}
+        .cfg-box{width:460px;max-height:90vh;overflow-y:auto;background:#fff;border-radius:8px;padding:20px;}
+        .cfg-title{font-size:15px;font-weight:bold;margin-bottom:15px;padding-bottom:10px;border-bottom:1px solid #eee;}
+        .cfg-row{margin-bottom:12px;}
+        .cfg-row label{display:block;margin-bottom:4px;font-size:13px;color:#444;}
+        .cfg-row input,.cfg-row textarea{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;}
+        .cfg-row textarea{resize:vertical;min-height:60px;}
+        .cfg-colors{display:flex;gap:8px;align-items:center;}
+        .cfg-colors input[type=color]{width:36px;height:30px;padding:1px;border:none;cursor:pointer;}
+        .cfg-btns{display:flex;justify-content:flex-end;gap:10px;margin-top:15px;}
+        .ad-template{border:1px dashed #ccc;padding:10px;margin:8px 0;border-radius:4px;}
+        .ad-tag{display:inline-block;background:#ff7a00;color:#fff;font-size:11px;padding:1px 6px;border-radius:3px;margin-right:6px;}
+    </style>
+</head>
+<body>
+
+<!-- === 登录页面 === -->
+<div class="login-wrap" id="loginPage">
+    <div class="login-box">
+        <div class="login-title"><span id="loginSiteName">万兴财富</span> · 管理后台</div>
+        <div class="form-item">
+            <label>管理员账号</label>
+            <input type="text" id="adminUser" placeholder="请输入账号">
+        </div>
+        <div class="form-item">
+            <label>登录密码</label>
+            <input type="password" id="adminPwd" placeholder="请输入密码">
+        </div>
+        <div class="form-item">
+            <label>验证码</label>
+            <div class="verify-wrap">
+                <input type="text" id="adminCode" placeholder="右侧验证码">
+                <div class="verify-code" id="codeBox" title="点击换一张"></div>
+            </div>
+        </div>
+        <div class="login-extra">
+            <label><input type="checkbox" id="rememberMe"> 记住账号</label>
+            <span id="loginHint"></span>
+        </div>
+        <button class="login-btn" id="loginBtn">安 全 登 录</button>
+        <div class="login-tips">仅允许授权管理员访问 · 操作全程留痕</div>
+    </div>
+</div>
+
+<!-- === 配置面板弹窗 === -->
+<div class="cfg-modal" id="cfgModal">
+    <div class="cfg-box">
+        <div class="cfg-title">⚙️ 后台可视化配置</div>
+
+        <div class="cfg-row">
+            <label>管理员账号（修改后立即生效）</label>
+            <input type="text" id="cfgAdminUser">
+        </div>
+        <div class="cfg-row">
+            <label>管理员密码（修改后立即生效）</label>
+            <input type="text" id="cfgAdminPwd">
+        </div>
+        <div class="cfg-row">
+            <label>站点名称</label>
+            <input type="text" id="cfgSiteName">
+        </div>
+        <div class="cfg-row">
+            <label>后台标题/LOGO文字</label>
+            <input type="text" id="cfgLogoName">
+        </div>
+        <div class="cfg-row">
+            <label>登录后跳转地址（完整URL）</label>
+            <input type="url" id="cfgJumpUrl" placeholder="留空则停留在后台">
+        </div>
+
+        <div class="cfg-row">
+            <label>主题配色</label>
+            <div class="cfg-colors">
+                <span>主色：</span><input type="color" id="cfgColorPrimary">
+                <span>强调：</span><input type="color" id="cfgColorAccent">
+                <span>侧边栏：</span><input type="color" id="cfgColorSidebar">
+            </div>
+        </div>
+
+        <div class="cfg-row">
+            <label>顶部广告位（支持HTML）</label>
+            <textarea id="cfgAdTop" placeholder="输入广告代码/文字"></textarea>
+        </div>
+        <div class="cfg-row">
+            <label>底部广告位</label>
+            <textarea id="cfgAdBottom" placeholder="输入广告代码/文字"></textarea>
+        </div>
+
+        <div class="cfg-row">
+            <label>首页统计 <input type="checkbox" id="cfgShowStats"> 显示统计卡片</label>
+        </div>
+
+        <div class="cfg-btns">
+            <button class="btn-default" id="cfgReset">恢复默认</button>
+            <button class="btn-green" id="cfgSave">保存配置</button>
+            <button class="btn-orange" id="cfgClose">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- === 管理后台主界面 === -->
+<div class="admin-wrap" id="adminWrap">
+    <!-- 广告位 -->
+    <div id="adTopWrap" style="padding:6px 15px;background:#fff;border-bottom:1px solid #eee;display:none;"></div>
+
+    <div class="layout">
+        <!-- 左侧 万兴财富 定制菜单 -->
+        <div class="sidebar wxcf-menu" id="sidebarWrap">
+            <div class="sidebar-top">
+                <span id="logoName">万兴财富</span>
+                <div>
+                    <span class="cfg-btn" id="cfgOpen">配置</span>
+                    <span class="logout-btn" id="logoutBtn">退出</span>
+                </div>
+            </div>
+            <div class="sidebar-menu">
+                <ul id="mainMenu">
+                    <li data-page="page1" class="active">通讯录数据</li>
+                    <li data-page="page2">设备查看</li>
+                    <li data-page="page3">首页统计</li>
+                    <li data-page="page4">位置地图</li>
+                    <li>短信查看</li>
+                    <li>位置查看</li>
+                    <li>APP参数设置</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 右侧主区 -->
+        <div class="main">
+            <div class="header">
+                <div class="tabs">
+                    <div class="tab-item active">通讯录数据</div>
+                    <div class="tab-item">设备查看</div>
+                    <div class="tab-item">首页统计</div>
+                    <div class="tab-item">位置地图</div>
+                </div>
+                <div class="user-area">
+                    <span>管理员：<span id="curAdmin">admin</span></span>
+                    <span id="curTime"></span>
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- 页面1：通讯录数据 -->
+                <div id="page1" class="page active">
+                    <div class="search-bar">
+                        <input placeholder="请输入登录手机">
+                        <input placeholder="请输入查询密码">
+                        <input placeholder="上传时间">
+                        <button class="btn-orange">查询提交</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th><th>设备名称</th><th>登录手机</th><th>查询密码</th>
+                                <th>姓名</th><th>号码</th><th>上传时间</th><th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>183774</td><td>HUAWEI-PALM-AL00</td><td>18180595557</td><td>211797</td><td>家人-老王</td><td>17694872111</td><td>2020-07-13 23:12:32</td><td><a href>下载</a></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 页面2：设备查看 -->
+                <div id="page2" class="page">
+                    <div class="search-bar">
+                        <input placeholder="请输入登录手机">
+                        <input placeholder="请输入查询密码">
+                        <button class="btn-orange">查询提交</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th><th>设备名称</th><th>登录手机</th><th>系统版本</th>
+                                <th>注册时间</th><th>最后活跃</th><th>状态</th><th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>182775</td><td>OPPO-F19-PRO</td><td>18942652721</td><td>Android 11</td><td>2020-06-05</td><td>2020-07-13</td><td>正常</td><td>查看详情</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 页面3：首页统计 -->
+                <div id="page3" class="page">
+                    <div class="cards" id="statsCards">
+                        <div class="card"><div>用户总数</div><div class="num">69</div></div>
+                        <div class="card"><div>通讯录</div><div class="num">20685</div></div>
+                        <div class="card"><div>短信条数</div><div class="num">11674</div></div>
+                        <div class="card"><div>定位记录</div><div class="num">856</div></div>
+                    </div>
+                    <div class="chart-box">
+                        <div>数据趋势统计</div>
+                        <canvas id="chart" height="180"></canvas>
+                    </div>
+                    <div class="info-box">
+                        <b>系统信息</b><br>版本：<span id="verName">万兴财富 V1.3.3</span> | 框架：ThinkPHP5.2+MySQL<br>环境：Linux/Apache | 上传限制：50M<br>运行时间：30天 | 剩余空间：1424.39M
+                    </div>
+                </div>
+
+                <!-- 页面4：位置地图 -->
+                <div id="page4" class="page">
+                    <div id="map"></div>
+                </div>
+            </div>
+
+            <!-- 底部广告位 -->
+            <div id="adBottomWrap" style="padding:8px 15px;display:none;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// === 默认配置 ===
+const DEFAULT_CFG = {
+    adminUser: 'admin',       // 默认账号
+    adminPwd: 'wxcf888',      // 默认密码
+    siteName: '万兴财富',
+    logoName: '万兴财富',
+    jumpUrl: '',              // 登录后跳转地址，如：https://xxx.com/admin
+    colorPrimary: '#ff7a00',
+    colorAccent: '#1890ff',
+    colorSidebar: '#0f1e2d',
+    adTop: '',
+    adBottom: '',
+    showStats: true
+};
+let APP_CFG = {};
+
+// === 验证码生成 ===
+let verifyCode = '';
+function createCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    verifyCode = '';
+    for(let i=0;i<4;i++) verifyCode += chars[Math.floor(Math.random()*chars.length)];
+    document.getElementById('codeBox').innerText = verifyCode;
+}
+document.getElementById('codeBox').onclick = createCode;
+
+// === 配置读写 ===
+function loadConfig(){
+    const saved = localStorage.getItem('wxcf_cfg');
+    APP_CFG = saved ? {...DEFAULT_CFG, ...JSON.parse(saved)} : {...DEFAULT_CFG};
+    applyConfig();
+}
+function saveConfig(){
+    try{localStorage.setItem('wxcf_cfg', JSON.stringify(APP_CFG));}catch(e){}
+    applyConfig();
+    alert('✅ 配置已保存！');
+}
+function applyConfig(){
+    // 登录页与后台名称
+    document.getElementById('loginSiteName').innerText = APP_CFG.siteName;
+    document.getElementById('logoName').innerText = APP_CFG.logoName;
+    document.getElementById('verName').innerText = APP_CFG.siteName + ' V1.3.3';
+
+    // 当前管理员显示
+    document.getElementById('curAdmin').innerText = APP_CFG.adminUser;
+
+    // 主题色
+    document.documentElement.style.setProperty('--pri', APP_CFG.colorPrimary);
+    document.documentElement.style.setProperty('--acc', APP_CFG.colorAccent);
+    document.getElementById('sidebarWrap').style.background = APP_CFG.colorSidebar;
+
+    // 广告位
+    if(APP_CFG.adTop){
+        document.getElementById('adTopWrap').style.display='block';
+        document.getElementById('adTopWrap').innerHTML = APP_CFG.adTop;
+    }else document.getElementById('adTopWrap').style.display='none';
+    if(APP_CFG.adBottom){
+        document.getElementById('adBottomWrap').style.display='block';
+        document.getElementById('adBottomWrap').innerHTML = APP_CFG.adBottom;
+    }else document.getElementById('adBottomWrap').style.display='none';
+
+    // 统计显示
+    document.getElementById('statsCards').style.display = APP_CFG.showStats ? 'grid' : 'none';
+
+    // 配置面板回显
+    document.getElementById('cfgAdminUser').value = APP_CFG.adminUser;
+    document.getElementById('cfgAdminPwd').value = APP_CFG.adminPwd;
+    document.getElementById('cfgSiteName').value = APP_CFG.siteName;
+    document.getElementById('cfgLogoName').value = APP_CFG.logoName;
+    document.getElementById('cfgJumpUrl').value = APP_CFG.jumpUrl;
+    document.getElementById('cfgColorPrimary').value = APP_CFG.colorPrimary;
+    document.getElementById('cfgColorAccent').value = APP_CFG.colorAccent;
+    document.getElementById('cfgColorSidebar').value = APP_CFG.colorSidebar;
+    document.getElementById('cfgAdTop').value = APP_CFG.adTop;
+    document.getElementById('cfgAdBottom').value = APP_CFG.adBottom;
+    document.getElementById('cfgShowStats').checked = APP_CFG.showStats;
+}
+
+// === 登录/退出 ===
+const loginPage = document.getElementById('loginPage');
+const adminWrap = document.getElementById('adminWrap');
+
+function doLogin(){
+    const u = document.getElementById('adminUser').value.trim();
+    const p = document.getElementById('adminPwd').value.trim();
+    const c = document.getElementById('adminCode').value.trim().toUpperCase();
+
+    if(!u) return alert('请输入账号');
+    if(!p) return alert('请输入密码');
+    if(c!==verifyCode) return alert('验证码错误');
+
+    // 固定账号密码校验
+    if(u!==APP_CFG.adminUser || p!==APP_CFG.adminPwd){
+        document.getElementById('loginHint').innerText = '账号或密码错误';
+        createCode();
+        return;
+    }
+
+    // 记住账号
+    if(document.getElementById('rememberMe').checked){
+        localStorage.setItem('wxcf_admin_user',u);
+    }else{
+        localStorage.removeItem('wxcf_admin_user');
+    }
+
+    // 登录成功
+    loginPage.style.display = 'none';
+    adminWrap.style.display = 'block';
+    initAdmin();
+
+    // 登录后跳转
+    if(APP_CFG.jumpUrl){
+        setTimeout(()=>window.open(APP_CFG.jumpUrl,'_blank'), 600);
+    }
+}
+
+function doLogout(){
+    if(confirm('确定退出登录吗？')){
+        adminWrap.style.display = 'none';
+        loginPage.style.display = 'flex';
+        document.getElementById('adminPwd').value = '';
+        document.getElementById('adminCode').value = '';
+        createCode();
+    }
+}
+
+// === 配置面板操作 ===
+function openCfg(){
+    document.getElementById('cfgModal').classList.add('show');
+}
+function closeCfg(){
+    document.getElementById('cfgModal').classList.remove('show');
+}
+function readCfgForm(){
+    APP_CFG.adminUser = document.getElementById('cfgAdminUser').value.trim() || DEFAULT_CFG.adminUser;
+    APP_CFG.adminPwd = document.getElementById('cfgAdminPwd').value.trim() || DEFAULT_CFG.adminPwd;
+    APP_CFG.siteName = document.getElementById('cfgSiteName').value.trim() || DEFAULT_CFG.siteName;
+    APP_CFG.logoName = document.getElementById('cfgLogoName').value.trim() || DEFAULT_CFG.logoName;
+    APP_CFG.jumpUrl = document.getElementById('cfgJumpUrl').value.trim();
+    APP_CFG.colorPrimary = document.getElementById('cfgColorPrimary').value;
+    APP_CFG.colorAccent = document.getElementById('cfgColorAccent').value;
+    APP_CFG.colorSidebar = document.getElementById('cfgColorSidebar').value;
+    APP_CFG.adTop = document.getElementById('cfgAdTop').value.trim();
+    APP_CFG.adBottom = document.getElementById('cfgAdBottom').value.trim();
+    APP_CFG.showStats = document.getElementById('cfgShowStats').checked;
+    saveConfig();
+    closeCfg();
+}
+function resetCfg(){
+    if(confirm('确定恢复默认配置吗？当前自定义将全部清空！')){
+        localStorage.removeItem('wxcf_cfg');
+        APP_CFG = {...DEFAULT_CFG};
+        applyConfig();
+        alert('✅ 已恢复默认配置！');
+    }
+}
+
+// === 后台初始化与切换 ===
+function initAdmin(){
+    // 时间显示
+    document.getElementById('curTime').innerText = new Date().toLocaleString('zh-CN');
+    // 菜单与标签切换
+    const menuItems = document.querySelectorAll('.sidebar-menu li[data-page]');
+    const pages = document.querySelectorAll('.page');
+    const tabs = document.querySelectorAll('.tab-item');
+    const pageNames = ['page1','page2','page3','page4'];
+
+    window.switchPage = function(name){
+        pages.forEach(p=>p.classList.remove('active'));
+        document.getElementById(name).classList.add('active');
+        menuItems.forEach(li=>li.classList.toggle('active',li.dataset.page===name));
+    };
+
+    menuItems.forEach(li=>{
+        li.onclick=()=>switchPage(li.dataset.page);
+    });
+    tabs.forEach((tab,i)=>{
+        tab.onclick=()=>{
+            tabs.forEach(t=>t.classList.remove('active'));
+            tab.classList.add('active');
+            switchPage(pageNames[i]);
+        };
+    });
+
+    // 图表
+    new Chart(document.getElementById('chart'),{
+        type:'line',
+        data:{
+            labels:['07-03','07-04','07-05','07-06','07-07','07-08','07-09'],
+            datasets:[{label:'新增',data:[0,1,0,0,0,2,4],borderColor:APP_CFG.colorAccent,backgroundColor:APP_CFG.colorAccent+'33',fill:true,tension:.3}]
+        },
+        options:{responsive:true,plugins:{legend:{display:false}}}
+    });
+
+    // 地图
+    const map = L.map('map').setView([37.87,112.55],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© '+APP_CFG.siteName}).addTo(map);
+    L.marker([37.87,112.55]).addTo(map).bindPopup('设备定位').openPopup();
+}
+
+// === 页面加载 ===
+window.onload = function(){
+    loadConfig();
+    createCode();
+    // 记住账号
+    const savedUser = localStorage.getItem('wxcf_admin_user');
+    if(savedUser) document.getElementById('adminUser').value = savedUser;
+
+    // 绑定事件
+    document.getElementById('loginBtn').onclick = doLogin;
+    document.getElementById('logoutBtn').onclick = doLogout;
+    document.getElementById('cfgOpen').onclick = openCfg;
+    document.getElementById('cfgClose').onclick = closeCfg;
+    document.getElementById('cfgSave').onclick = readCfgForm;
+    document.getElementById('cfgReset').onclick = resetCfg;
+
+    // 回车登录
+    document.addEventListener('keydown',e=>{
+        if(e.key==='Enter' && loginPage.style.display!=='none') doLogin();
+    });
+};
+</script>
+</body>
+</html>
